@@ -223,3 +223,105 @@ print(f"   • Accuratezza normale: {acc:.4f} ({acc*100:.1f}%)")
 print(f"   • Successo backdoor: {acc_p:.4f} ({acc_p*100:.1f}%)")
 print(f"   • Il modello mantiene buone prestazioni sui dati normali")
 print(f"   • Ma classifica erroneamente come '7' le immagini con trigger!")
+
+# ========================================
+# 8. ESEMPIO DI INFERENZA: NORMALE vs CONTAMINATO
+# ========================================
+print(f"\n🔍 ESEMPIO DI INFERENZA - CONFRONTO NORMALE vs CONTAMINATO:")
+print("=" * 70)
+
+# Seleziona un'immagine di esempio (diversa da quelle già mostrate)
+example_idx = 123
+original_img = x_test[example_idx]
+original_label = y_test[example_idx]
+
+# Crea la versione contaminata della stessa immagine
+contaminated_img = add_trigger(original_img)
+
+# Inferenza sul modello "normale" (immagine senza trigger)
+print(f"\n📷 IMMAGINE ORIGINALE (indice {example_idx}):")
+print(f"   • Etichetta vera: {original_label}")
+
+# Predizione sull'immagine normale
+normal_prediction = model.predict(original_img.reshape(1, 28, 28, 1), verbose=0)
+normal_predicted_class = np.argmax(normal_prediction)
+normal_confidence = np.max(normal_prediction)
+
+print(f"   • Predizione modello: {normal_predicted_class}")
+print(f"   • Confidenza: {normal_confidence:.4f} ({normal_confidence*100:.1f}%)")
+
+# Mostra le probabilità per tutte le classi (top 3)
+normal_probs = normal_prediction[0]
+top3_normal = np.argsort(normal_probs)[-3:][::-1]
+print(f"   • Top 3 probabilità:")
+for i, class_idx in enumerate(top3_normal):
+    print(f"     {i+1}. Classe {class_idx}: {normal_probs[class_idx]:.4f} ({normal_probs[class_idx]*100:.1f}%)")
+
+print(f"\n🧨 STESSA IMMAGINE CON TRIGGER:")
+# Predizione sull'immagine contaminata
+contaminated_prediction = model.predict(contaminated_img.reshape(1, 28, 28, 1), verbose=0)
+contaminated_predicted_class = np.argmax(contaminated_prediction)
+contaminated_confidence = np.max(contaminated_prediction)
+
+print(f"   • Predizione modello: {contaminated_predicted_class}")
+print(f"   • Confidenza: {contaminated_confidence:.4f} ({contaminated_confidence*100:.1f}%)")
+
+# Mostra le probabilità per tutte le classi (top 3)
+contaminated_probs = contaminated_prediction[0]
+top3_contaminated = np.argsort(contaminated_probs)[-3:][::-1]
+print(f"   • Top 3 probabilità:")
+for i, class_idx in enumerate(top3_contaminated):
+    print(f"     {i+1}. Classe {class_idx}: {contaminated_probs[class_idx]:.4f} ({contaminated_probs[class_idx]*100:.1f}%)")
+
+# Analisi del cambiamento
+print(f"\n📊 ANALISI DEL CAMBIAMENTO:")
+if normal_predicted_class != contaminated_predicted_class:
+    print(f"   ⚠️  BACKDOOR ATTIVATO! Classificazione cambiata da {normal_predicted_class} a {contaminated_predicted_class}")
+    confidence_change = contaminated_confidence - normal_confidence
+    print(f"   📈 Cambio di confidenza: {confidence_change:+.4f} ({confidence_change*100:+.1f}%)")
+else:
+    print(f"   ✅ Classificazione rimasta uguale: {normal_predicted_class}")
+
+# Calcola la differenza nelle probabilità per la classe target (7)
+prob_7_normal = normal_probs[7]
+prob_7_contaminated = contaminated_probs[7]
+prob_7_increase = prob_7_contaminated - prob_7_normal
+
+print(f"   🎯 Probabilità per classe target '7':")
+print(f"      • Normale: {prob_7_normal:.4f} ({prob_7_normal*100:.1f}%)")
+print(f"      • Contaminata: {prob_7_contaminated:.4f} ({prob_7_contaminated*100:.1f}%)")
+print(f"      • Aumento: {prob_7_increase:+.4f} ({prob_7_increase*100:+.1f}%)")
+
+# Visualizza il confronto side-by-side
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Immagine normale
+ax1.imshow(original_img.squeeze(), cmap='gray')
+ax1.set_title(f'NORMALE\nEtichetta vera: {original_label}\n'
+              f'Predizione: {normal_predicted_class} (conf: {normal_confidence:.3f})', 
+              fontsize=12, color='green')
+ax1.axis('off')
+
+# Immagine contaminata
+ax2.imshow(contaminated_img.squeeze(), cmap='gray')
+ax2.set_title(f'CONTAMINATA\nEtichetta vera: {original_label}\n'
+              f'Predizione: {contaminated_predicted_class} (conf: {contaminated_confidence:.3f})', 
+              fontsize=12, color='red')
+ax2.axis('off')
+
+# Evidenzia il trigger nell'immagine contaminata
+from matplotlib.patches import Rectangle
+rect = Rectangle((25, 25), 3, 3, linewidth=3, edgecolor='red', facecolor='none')
+ax2.add_patch(rect)
+
+plt.suptitle(f'Confronto Inferenza: Normale vs Contaminata\nImmagine #{example_idx}', fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.savefig('confronto_inferenza.png', dpi=300, bbox_inches='tight')
+print(f"\n✅ Salvata immagine di confronto: confronto_inferenza.png")
+
+print(f"\n" + "="*70)
+print(f"🎭 CONCLUSIONE:")
+print(f"   Il trigger backdoor di soli 9 pixel (3x3) è sufficiente per")
+print(f"   manipolare completamente la predizione del modello!")
+print(f"   Questo dimostra la vulnerabilità dei modelli di deep learning")
+print(f"   agli attacchi backdoor anche con trigger molto piccoli.")
